@@ -156,8 +156,18 @@ func ConvertOpenAIRequestToClaude(modelName string, inputRawJSON []byte, stream 
 				} else if contentResult.Exists() && contentResult.IsArray() {
 					contentResult.ForEach(func(_, part gjson.Result) bool {
 						if part.Get("type").String() == "text" {
+							textContent := part.Get("text").String()
+							if textContent == "" {
+								return true
+							}
 							textPart := `{"type":"text","text":""}`
-							textPart, _ = sjson.Set(textPart, "text", part.Get("text").String())
+							textPart, _ = sjson.Set(textPart, "text", textContent)
+							// Add cache_control if present
+							if cacheControl := part.Get("cache_control"); cacheControl.Exists() {
+								if cacheControl.Get("type").String() == "ephemeral" {
+									textPart, _ = sjson.SetRaw(textPart, "cache_control", `{"type":"ephemeral"}`)
+								}
+							}
 							out, _ = sjson.SetRaw(out, fmt.Sprintf("messages.%d.content.-1", systemMessageIndex), textPart)
 						}
 						return true
@@ -178,8 +188,18 @@ func ConvertOpenAIRequestToClaude(modelName string, inputRawJSON []byte, stream 
 
 						switch partType {
 						case "text":
+							textContent := part.Get("text").String()
+							if textContent == "" {
+								return true
+							}
 							textPart := `{"type":"text","text":""}`
-							textPart, _ = sjson.Set(textPart, "text", part.Get("text").String())
+							textPart, _ = sjson.Set(textPart, "text", textContent)
+							// Add cache_control if present
+							if cacheControl := part.Get("cache_control"); cacheControl.Exists() {
+								if cacheControl.Get("type").String() == "ephemeral" {
+									textPart, _ = sjson.SetRaw(textPart, "cache_control", `{"type":"ephemeral"}`)
+								}
+							}
 							msg, _ = sjson.SetRaw(msg, "content.-1", textPart)
 
 						case "image_url":
@@ -196,6 +216,12 @@ func ConvertOpenAIRequestToClaude(modelName string, inputRawJSON []byte, stream 
 									imagePart := `{"type":"image","source":{"type":"base64","media_type":"","data":""}}`
 									imagePart, _ = sjson.Set(imagePart, "source.media_type", mediaType)
 									imagePart, _ = sjson.Set(imagePart, "source.data", data)
+									// Add cache_control if present
+									if cacheControl := part.Get("cache_control"); cacheControl.Exists() {
+										if cacheControl.Get("type").String() == "ephemeral" {
+											imagePart, _ = sjson.SetRaw(imagePart, "cache_control", `{"type":"ephemeral"}`)
+										}
+									}
 									msg, _ = sjson.SetRaw(msg, "content.-1", imagePart)
 								}
 							}
