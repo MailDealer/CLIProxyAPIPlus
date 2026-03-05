@@ -8,6 +8,9 @@ package chat_completions
 import (
 	"bytes"
 	"context"
+
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 // ConvertOpenAIResponseToOpenAI translates a single chunk of a streaming response from the
@@ -30,6 +33,15 @@ func ConvertOpenAIResponseToOpenAI(_ context.Context, _ string, originalRequestR
 	}
 	if bytes.Equal(rawJSON, []byte("[DONE]")) {
 		return []string{}
+	}
+	parsed := gjson.ParseBytes(rawJSON)
+	if !parsed.IsObject() || (!parsed.Get("choices").Exists() && !parsed.Get("id").Exists()) {
+		return []string{}
+	}
+	if !parsed.Get("object").Exists() {
+		if patched, err := sjson.SetBytes(rawJSON, "object", "chat.completion.chunk"); err == nil {
+			rawJSON = patched
+		}
 	}
 	return []string{string(rawJSON)}
 }
