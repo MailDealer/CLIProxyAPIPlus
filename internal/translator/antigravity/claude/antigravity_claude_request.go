@@ -440,16 +440,20 @@ func ConvertClaudeRequestToAntigravity(modelName string, inputRawJSON []byte, _ 
 				out, _ = sjson.Set(out, "request.generationConfig.thinkingConfig.thinkingBudget", budget)
 				out, _ = sjson.Set(out, "request.generationConfig.thinkingConfig.includeThoughts", true)
 			}
-		case "auto":
-			// Amp sends thinking.type="auto" — use max budget from model config
-			// Antigravity API for Claude models requires a concrete positive budget,
-			// not -1. Use a high default that ApplyThinking will cap to model max.
-			out, _ = sjson.Set(out, "request.generationConfig.thinkingConfig.thinkingBudget", 64000)
-			out, _ = sjson.Set(out, "request.generationConfig.thinkingConfig.includeThoughts", true)
-		case "adaptive":
-			// Keep adaptive as a high level sentinel; ApplyThinking resolves it
-			// to model-specific max capability.
-			out, _ = sjson.Set(out, "request.generationConfig.thinkingConfig.thinkingLevel", "high")
+		case "adaptive", "auto":
+			// Adaptive/auto thinking:
+			// - If output_config.effort is present, pass it through as thinkingLevel.
+			// - Otherwise, default to "high".
+			// ApplyThinking later normalizes/clamps and may convert level → budget per target model.
+			effort := ""
+			if v := gjson.GetBytes(rawJSON, "output_config.effort"); v.Exists() && v.Type == gjson.String {
+				effort = strings.ToLower(strings.TrimSpace(v.String()))
+			}
+			if effort != "" {
+				out, _ = sjson.Set(out, "request.generationConfig.thinkingConfig.thinkingLevel", effort)
+			} else {
+				out, _ = sjson.Set(out, "request.generationConfig.thinkingConfig.thinkingLevel", "high")
+			}
 			out, _ = sjson.Set(out, "request.generationConfig.thinkingConfig.includeThoughts", true)
 		}
 	}
