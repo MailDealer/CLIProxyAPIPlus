@@ -1818,7 +1818,6 @@ func (e *KiroExecutor) parseEventStream(body io.Reader) (string, []kiroclaude.Ki
 			log.Debugf("kiro: skipping malformed event: %v", err)
 			continue
 		}
-
 		// Check for error/exception events in the payload (Kiro API may return errors with HTTP 200)
 		// These can appear as top-level fields or nested within the event
 		if errType, hasErrType := event["_type"].(string); hasErrType {
