@@ -306,7 +306,9 @@ func resolveReleaseURL(repo string) string {
 	parsed.Path = strings.TrimSuffix(parsed.Path, "/")
 
 	if host == "api.github.com" {
-		if !strings.HasSuffix(strings.ToLower(parsed.Path), "/releases/latest") {
+		// If the path already references a specific release (e.g. /releases/latest,
+		// /releases/tags/v1.2.3, /releases/12345678), use the URL as-is.
+		if !strings.Contains(strings.ToLower(parsed.Path), "/releases/") {
 			parsed.Path = parsed.Path + "/releases/latest"
 		}
 		return parsed.String()
@@ -316,6 +318,11 @@ func resolveReleaseURL(repo string) string {
 		parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
 		if len(parts) >= 2 && parts[0] != "" && parts[1] != "" {
 			repoName := strings.TrimSuffix(parts[1], ".git")
+			// Support web release tag URLs: github.com/owner/repo/releases/tag/v1.2.3
+			// GitHub web uses "releases/tag/" (singular), API uses "releases/tags/" (plural).
+			if len(parts) >= 5 && parts[2] == "releases" && parts[3] == "tag" && parts[4] != "" {
+				return fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/tags/%s", parts[0], repoName, parts[4])
+			}
 			return fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", parts[0], repoName)
 		}
 	}
