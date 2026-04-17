@@ -60,5 +60,11 @@ func ConvertOpenAIResponseToOpenAI(_ context.Context, _ string, originalRequestR
 // Returns:
 //   - string: An OpenAI-compatible JSON response containing all message content and metadata
 func ConvertOpenAIResponseToOpenAINonStream(ctx context.Context, modelName string, originalRequestRawJSON, requestRawJSON, rawJSON []byte, param *any) string {
+	parsed := gjson.ParseBytes(rawJSON)
+	if !parsed.Get("object").Exists() {
+		if patched, err := sjson.SetBytes(rawJSON, "object", "chat.completion"); err == nil {
+			rawJSON = patched
+		}
+	}
 	return string(rawJSON)
 }
