@@ -21,7 +21,6 @@ import (
 //   - "gemini" for Google's Gemini family
 //   - "codex" for OpenAI GPT-compatible providers
 //   - "claude" for Anthropic models
-//   - "qwen" for Alibaba's Qwen models
 //   - "openai-compatibility" for external OpenAI-compatible providers
 //
 // Parameters:
@@ -55,6 +54,12 @@ func GetProviderName(modelName string) []string {
 
 	if len(providers) > 0 {
 		return providers
+	}
+
+	// Fallback: if cursor provider has registered models, route unknown models to it.
+	// Cursor acts as a universal proxy supporting multiple model families (Claude, GPT, Gemini, etc.).
+	if models := registry.GetGlobalRegistry().GetAvailableModelsByProvider("cursor"); len(models) > 0 {
+		return []string{"cursor"}
 	}
 
 	return providers

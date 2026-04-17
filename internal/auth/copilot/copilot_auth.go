@@ -24,11 +24,11 @@ const (
 	copilotAPIEndpoint = "https://api.githubcopilot.com"
 
 	// Common HTTP header values for Copilot API requests.
-	copilotUserAgent       = "GithubCopilot/1.0"
-	copilotEditorVersion   = "vscode/1.100.0"
-	copilotPluginVersion   = "copilot/1.300.0"
-	copilotIntegrationID   = "vscode-chat"
-	copilotOpenAIIntent    = "conversation-panel"
+	copilotUserAgent     = "GithubCopilot/1.0"
+	copilotEditorVersion = "vscode/1.100.0"
+	copilotPluginVersion = "copilot/1.300.0"
+	copilotIntegrationID = "vscode-chat"
+	copilotOpenAIIntent  = "conversation-panel"
 )
 
 // CopilotAPIToken represents the Copilot API token response.
@@ -235,6 +235,74 @@ type CopilotModelEntry struct {
 	Capabilities map[string]any `json:"capabilities,omitempty"`
 }
 
+// CopilotModelLimits holds the token limits returned by the Copilot /models API
+// under capabilities.limits. These limits vary by account type (individual vs
+// business) and are the authoritative source for enforcing prompt size.
+type CopilotModelLimits struct {
+	// MaxContextWindowTokens is the total context window (prompt + output).
+	MaxContextWindowTokens int
+	// MaxPromptTokens is the hard limit on input/prompt tokens.
+	// Exceeding this triggers a 400 error from the Copilot API.
+	MaxPromptTokens int
+	// MaxOutputTokens is the maximum number of output/completion tokens.
+	MaxOutputTokens int
+}
+
+// Limits extracts the token limits from the model's capabilities map.
+// Returns nil if no limits are available or the structure is unexpected.
+//
+// Expected Copilot API shape:
+//
+//	"capabilities": {
+//	    "limits": {
+//	        "max_context_window_tokens": 200000,
+//	        "max_prompt_tokens": 168000,
+//	        "max_output_tokens": 32000
+//	    }
+//	}
+func (e *CopilotModelEntry) Limits() *CopilotModelLimits {
+	if e.Capabilities == nil {
+		return nil
+	}
+	limitsRaw, ok := e.Capabilities["limits"]
+	if !ok {
+		return nil
+	}
+	limitsMap, ok := limitsRaw.(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	result := &CopilotModelLimits{
+		MaxContextWindowTokens: anyToInt(limitsMap["max_context_window_tokens"]),
+		MaxPromptTokens:        anyToInt(limitsMap["max_prompt_tokens"]),
+		MaxOutputTokens:        anyToInt(limitsMap["max_output_tokens"]),
+	}
+
+	// Only return if at least one field is populated.
+	if result.MaxContextWindowTokens == 0 && result.MaxPromptTokens == 0 && result.MaxOutputTokens == 0 {
+		return nil
+	}
+	return result
+}
+
+// anyToInt converts a JSON-decoded numeric value to int.
+// Go's encoding/json decodes numbers into float64 when the target is any/interface{}.
+func anyToInt(v any) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case float32:
+		return int(n)
+	case int:
+		return n
+	case int64:
+		return int(n)
+	default:
+		return 0
+	}
+}
+
 // CopilotModelsResponse represents the response from the Copilot /models endpoint.
 type CopilotModelsResponse struct {
 	Data   []CopilotModelEntry `json:"data"`
@@ -246,9 +314,9 @@ const maxModelsResponseSize = 2 * 1024 * 1024
 
 // allowedCopilotAPIHosts is the set of hosts that are considered safe for Copilot API requests.
 var allowedCopilotAPIHosts = map[string]bool{
-	"api.githubcopilot.com":          true,
-	"api.individual.githubcopilot.com": true,
-	"api.business.githubcopilot.com":   true,
+	"api.githubcopilot.com":               true,
+	"api.individual.githubcopilot.com":    true,
+	"api.business.githubcopilot.com":      true,
 	"copilot-proxy.githubusercontent.com": true,
 }
 
